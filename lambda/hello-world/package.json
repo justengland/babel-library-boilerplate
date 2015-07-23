@@ -1,0 +1,10 @@
+{
+  "name": "hello-world-lambda",
+  "version": "1.0.0",
+  "description": "Just my first attempted at build a lambda deploy tool.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": ""
+}

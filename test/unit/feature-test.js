@@ -16,6 +16,7 @@ describe('A feature test', () => {
     });
   });
 
+  /*
   describe('another function', () => {
     beforeEach(() => {
       spy(MyLibrary, 'anotherFn');
@@ -30,4 +31,5 @@ describe('A feature test', () => {
       expect(MyLibrary.anotherFn).to.have.always.returned('ok, friend');
     });
   });
+  */
 });
