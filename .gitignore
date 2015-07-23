@@ -29,3 +29,12 @@ tmp
 
 # Users Environment Variables
 .lock-wscript
+
+# aws build area
+dist
+
+# Code metrics
+converage
+
+# Webstorm
+.idea
