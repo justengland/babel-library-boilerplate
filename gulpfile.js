@@ -8,8 +8,10 @@ const gutil = require('gulp-util');
 const rename = require('gulp-rename');
 const install = require('gulp-install');
 const zip = require('gulp-zip');
+const gcallback = require('gulp-callback');
 const AWS = require('aws-sdk');
-
+const readdir = require('readdir-plus');
+const async = require('async');
 
 const glob = require('glob');
 const path = require('path');
@@ -25,7 +27,8 @@ const manifest = require('./package.json');
 const config = manifest.babelBoilerplateOptions;
 const mainFile = manifest.main;
 const destinationFolder = path.dirname(mainFile);
-const exportFileName = path.basename(mainFile, path.extname(mainFile));
+
+
 
 // Adding in https://medium.com/@AdamRNeary/a-gulp-workflow-for-amazon-lambda-61c2afd723b6
 //   also https://medium.com/@AdamRNeary/developing-and-testing-amazon-lambda-functions-e590fac85df4
@@ -38,25 +41,43 @@ gulp.task('npm', function() {
 });
 
 // The js task could be replaced with gulp-coffee as desired.
-gulp.task('js', function() {
-
-  // this is where I am moving the source file
-  gulp.src('./lambda/hello-world/index')
-      .pipe(gulp.dest('dist/'))
-});
+//gulp.task('js', function() {
+//
+//  // this is where I am moving the source file
+//  gulp.src('./lambda/hello-world/index.js')
+//      .pipe(gulp.dest('dist/'));
+//});
 
 // Next copy over environment variables managed outside of source control.
 gulp.task('env', function() {
   gulp.src('./config.env.production')
       .pipe(rename('.env'))
-      .pipe(gulp.dest('./dist'))
+      .pipe(gulp.dest('./dist'));
 });
 
 // Now the dist directory is ready to go. Zip it.
-gulp.task('zip', function() {
-  gulp.src(['dist/**/*', '!dist/package.json', 'dist/.*'])
-      .pipe(zip('dist.zip'))
-      .pipe(gulp.dest('./'));
+gulp.task('zip', function(onComplete) {
+  function handleFolder(folder, onFolderComplete) {
+    const zipLocation = __dirname + "/dist";
+    const zipName = folder.basename + '.zip';
+    const thesrc = ['**/*'];
+    gulp.src(['dist/hello-josh/**/*'])
+      .pipe(zip(zipName))
+      .pipe(gulp.dest('dist'))
+      .pipe(gcallback(onFolderComplete));
+  }
+
+  getLambdasDistribution(function(lambdaFolders) {
+    async.each(lambdaFolders, handleFolder, function(err){
+      // if any of the file processing produced an error, err would equal that error
+      if( err ) {
+        gutil.log('Failed to build lambda javascript', err);
+      }
+      onComplete();
+    });
+  });
+
+  return;
 });
 
 // Per the gulp guidelines, we do not need a plugin for something that can be
@@ -66,48 +87,57 @@ gulp.task('zip', function() {
 // the case if you have installed and configured the AWS CLI.
 //
 // See http://aws.amazon.com/sdk-for-node-js/
-gulp.task('upload', function() {
+gulp.task('upload', function(onComplete) {
 
   // TODO: This should probably pull from package.json
   AWS.config.region = 'us-east-1';
   var lambda = new AWS.Lambda();
-  var functionName = 'hello-josh';
 
-  lambda.getFunction({FunctionName: functionName}, function(err, data) {
-    gutil.log("made it this far");
+  function handleZip(zipFile, onFolderComplete) {
+    var functionName = zipFile.basename;
+    var zipPath = './dist/' + functionName + '.zip'
 
-    if (err) {
-      if (err.statusCode === 404) {
-        var warning = 'Unable to find lambda function ' + deploy_function + '. '
-        warning += 'Verify the lambda function name and AWS region are correct.'
-        gutil.log(warning);
-      } else {
-        var warning = 'AWS API request failed. '
-        warning += 'Check your AWS credentials and permissions.'
-        gutil.log(warning);
-      }
-    }
-
-    // This is a bit silly, simply because these five parameters are required.
-    var current = data.Configuration;
-    var params = {
-      FunctionName: functionName,
-      Handler: current.Handler,
-      Mode: current.Mode,
-      Role: current.Role,
-      Runtime: current.Runtime
-    };
-
-    fs.readFile('./dist.zip', function(err, data) {
-      params['ZipFile'] = data;
-
-      lambda.updateFunctionCode(params, function(err, data) {
-        if (err) {
-          var warning = 'Package upload failed. '
-          warning += 'Check your iam:PassRole permissions.'
+    gutil.log('Push: ', zipFile);
+    lambda.getFunction({FunctionName: functionName}, function(err, data) {
+      if (err) {
+        if (err.statusCode === 404) {
+          var warning = 'Unable to find lambda function ' + deploy_function + '. '
+          warning += 'Verify the lambda function name and AWS region are correct.'
+          gutil.log(warning);
+        } else {
+          var warning = 'AWS API request failed. '
+          warning += 'Check your AWS credentials and permissions.'
           gutil.log(warning);
         }
+      }
+      var params = {
+        FunctionName: functionName
+      };
+
+      gutil.log('lambda params:', params);
+
+      fs.readFile(zipPath, function(err, data) {
+        params['ZipFile'] = data;
+
+        lambda.updateFunctionCode(params, function(err, data) {
+          if (err) {
+            var warning = 'Package upload failed. '
+            warning += 'Check your iam:PassRole permissions.'
+            gutil.log(warning, err);
+          }
+          onFolderComplete();
+        });
       });
+    });
+  }
+
+  getLambdasZipFiles(function(zips) {
+    async.each(zips, handleZip, function(err){
+      // if any of the file processing produced an error, err would equal that error
+      if( err ) {
+        gutil.log('Failed to build lambda javascript', err);
+      }
+      onComplete();
     });
   });
 });
@@ -115,14 +145,13 @@ gulp.task('upload', function() {
 // Heading Back to the template Adding in https://github.com/babel/babel-library-boilerplate
 
 // Remove the built files
-gulp.task('clean', function(cb) {
-  del([destinationFolder], cb);
-
-  // from gulp workflow
-  del('./dist',
-      del('./archive.zip', cb)
-  );
-
+gulp.task('clean', function(onComplete) {
+  del([destinationFolder], function() {
+    // from gulp workflow
+    del('./dist',
+      del('./archive.zip', onComplete)
+    );
+  });
 });
 
 // Remove our temporary files
@@ -155,38 +184,115 @@ createLintTask('lint-src', ['src/**/*.js']);
 // Lint our test code
 createLintTask('lint-test', ['test/**/*.js']);
 
-// Build two versions of the library
-gulp.task('build', ['lint-src', 'clean'], function(done) {
+function getLambdas(onComplete) {
+  var options = {
+    recursive: false,
+    filter: {
+      directory: true
+    }
+  };
+
+  readdir(config.lambdaPath, options, function (err, files) {
+    files.filter(function(file) {
+      return file.type === 'directory';
+    });
+    onComplete(files);
+  });
+}
+
+function getLambdasDistribution(onComplete) {
+  var options = {
+    recursive: false,
+    filter: {
+      directory: true
+    }
+  };
+
+  readdir("./dist", options, function (err, files) {
+    files.filter(function(file) {
+      return file.type === 'directory';
+    });
+    onComplete(files);
+  });
+}
+
+function getLambdasZipFiles(onComplete) {
+  var options = {
+    recursive: false,
+    filter: {
+      directory: false
+    }
+  };
+
+  readdir("./dist", options, function (err, files) {
+    onComplete(files);
+  });
+}
+
+// transpile
+function bundleSource(name, base, entry, done) {
+
+  const exportFileName = path.basename(config.lambdaEntryFile, path.extname(entry));
+  gutil.log('exportFileName -->', exportFileName);
+
   esperanto.bundle({
-    base: 'src',
-    entry: config.entryFileName,
-  }).then(function(bundle) {
+    base: base,
+    entry: entry,
+  }).then(function (bundle) {
     var res = bundle.toUmd({
       sourceMap: true,
-      sourceMapSource: config.entryFileName + '.js',
-      sourceMapFile: exportFileName + '.js',
+      sourceMapSource: entry + '.js',
+      sourceMapFile: entry + '.js',
       name: config.exportVarName
     });
 
     // Write the generated sourcemap
     mkdirp.sync(destinationFolder);
-    fs.writeFileSync(path.join(destinationFolder, exportFileName + '.js'), res.map.toString());
+    const workingFolder = path.join(destinationFolder, name);
+    mkdirp.sync(workingFolder);
 
-    $.file(exportFileName + '.js', res.code, { src: true })
+    var outfileName = path.join(workingFolder, exportFileName + '.js')
+    // gutil.log("path it-->", res.map.toString());
+    fs.writeFileSync(outfileName, res.map.toString());
+
+    $.file(exportFileName + '.js', res.code, {src: true})
       .pipe($.plumber())
-      .pipe($.sourcemaps.init({ loadMaps: true }))
-      .pipe($.babel({ blacklist: ['useStrict'] }))
+      .pipe($.sourcemaps.init({loadMaps: true}))
+      .pipe($.babel({blacklist: ['useStrict']}))
       .pipe($.sourcemaps.write('./', {addComment: false}))
-      .pipe(gulp.dest(destinationFolder))
+      .pipe(gulp.dest(workingFolder))
       .pipe($.filter(['*', '!**/*.js.map']))
-      .pipe($.rename(exportFileName + '.min.js'))
-      .pipe($.sourcemaps.init({ loadMaps: true }))
-      .pipe($.uglify())
-      .pipe($.sourcemaps.write('./'))
-      .pipe(gulp.dest(destinationFolder))
+      // We will use webpack to do mins and uglify
+      //.pipe($.rename(exportFileName + '.min.js'))
+      //.pipe($.sourcemaps.init({loadMaps: true}))
+      //.pipe($.uglify())
+      //.pipe($.sourcemaps.write('./'))
+      .pipe(gulp.dest(workingFolder))
       .on('end', done);
-  })
-  .catch(done);
+    })
+    .catch(done);
+}
+gulp.task('build', ['lint-src', 'clean'], function(done) {
+  getLambdas(function(lambdaFolders) {
+
+    function handleFolder(folder, onFolderComplete) {
+      const name = folder.basename;
+      const base = path.join(config.lambdaPath, folder.basename);
+      const entry = config.lambdaEntryFile;
+
+      bundleSource(name, base, entry, onFolderComplete);
+    }
+
+    async.each(lambdaFolders, handleFolder, function(err){
+      // if any of the file processing produced an error, err would equal that error
+      if( err ) {
+        gutil.log('Failed to build lambda javascript', err);
+      }
+      done();
+    });
+
+  });
+
 });
 
 // Bundle our app for our unit tests
@@ -257,22 +363,13 @@ gulp.task('test-browser', ['build-in-sequence'], function() {
 // The key to deploying as a single command is to manage the sequence of events.
 gulp.task('default', function(callback) {
   return runSequence(
-      ['run-hello-world'],
-      callback
+    ['clean'],
+    ['npm', 'env'],
+    ['build'],
+    ['zip'],
+    ['upload'],
+    callback
   );
 });
 
-gulp.task('run-hello-world', function() {
 
-  //var params = {
-  //  FunctionName: 'STRING_VALUE', /* required */
-  //  ClientContext: 'STRING_VALUE',
-  //  InvocationType: 'Event | RequestResponse | DryRun',
-  //  LogType: 'None | Tail',
-  //  Payload: new Buffer('...') || 'STRING_VALUE'
-  //};
-  //lambda.invoke(params, function(err, data) {
-  //  if (err) console.log(err, err.stack); // an error occurred
-  //  else     console.log(data);           // successful response
-  //});
-});

@@ -4,10 +4,12 @@
   "description": "Author libraries in ES2015 for Node and the browser.",
   "main": "dist/library-dist.js",
   "scripts": {
-    "test": "gulp",
+    "test": "gulp test",
     "test-browser": "gulp test-browser",
     "build": "gulp build",
-    "coverage": "gulp coverage"
+    "deploy": "gulp",
+    "coverage": "gulp coverage",
+    "start": "gulp watch"
   },
   "repository": {
     "type": "git",
@@ -67,6 +69,8 @@
   "babelBoilerplateOptions": {
     "entryFileName": "index",
     "exportVarName": "MyLibrary",
+    "lambdaPath": "./lambda",
+    "lambdaEntryFile": "index",
     "mochaGlobals": [
       "stub",
       "spy",
@@ -74,10 +78,14 @@
     ]
   },
   "dependencies": {
+    "async": "^1.4.0",
     "aws-sdk": "^2.1.39",
+    "gulp-callback": "0.0.3",
     "gulp-install": "^0.4.0",
     "gulp-rename": "^1.2.2",
     "gulp-util": "^3.0.6",
-    "gulp-zip": "^3.0.2"
+    "gulp-zip": "^3.0.2",
+    "power-assert": "^0.11.0",
+    "readdir-plus": "^0.4.0"
   }
 }

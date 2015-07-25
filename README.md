@@ -25,8 +25,9 @@ Run `gulp build` to compile the source into a distributable format.
 
 Put your unit tests in `test/unit`. The `gulp` command runs the tests.
 
-### AWS Config
-It is recommended that you store your AWS Credentials in ~/.aws/credentials as per the docs. Not sure about windows.
+### Development AWS Config
+Use the aws cli to install your credentials - aws configure
+
 
 ### Gulp tasks
 

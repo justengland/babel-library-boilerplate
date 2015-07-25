@@ -1,5 +1,4 @@
-
-const MyLibrary = {
+const LambdaRunner = {
   anotherFn() {
     return 'what , friend';
   },
@@ -8,4 +7,4 @@ const MyLibrary = {
   }
 };
 
-export default MyLibrary;
+export default LambdaRunner;
