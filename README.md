@@ -1,5 +1,5 @@
 # babel-library-boilerplate
-[![Travis build status](http://img.shields.io/travis/babel/babel-library-boilerplate.svg?style=flat)](https://travis-ci.org/babel/babel-library-boilerplate)
+[![Travis build status](https://api.travis-ci.org/justengland/babel-library-boilerplate.svg?style=flat)](https://travis-ci.org/babel/babel-library-boilerplate)
 [![Code Climate](https://codeclimate.com/github/babel/babel-library-boilerplate/badges/gpa.svg)](https://codeclimate.com/github/babel/babel-library-boilerplate)
 [![Test Coverage](https://codeclimate.com/github/babel/babel-library-boilerplate/badges/coverage.svg)](https://codeclimate.com/github/babel/babel-library-boilerplate)
 [![Dependency Status](https://david-dm.org/babel/babel-library-boilerplate.svg)](https://david-dm.org/babel/babel-library-boilerplate)
