@@ -1,10 +1,9 @@
-// import HelloWorld from '../../../lambda/hello-world/index.js';
 import factory from 'lambda-handler';
 import path from 'path';
 import sinon from 'sinon';
 import assert from 'power-assert';
 
-const handlerPath = path.resolve('./lambda/hello-world/index.js');
+const handlerPath = path.resolve('./lambda/hello-josh/index.js');
 const fixturePath = path.resolve('./test/fixtures/debug');
 
 describe('Hello world test', () => {

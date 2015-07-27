@@ -9,6 +9,7 @@ const rename = require('gulp-rename');
 const install = require('gulp-install');
 const zip = require('gulp-zip');
 const gcallback = require('gulp-callback');
+const esperanto = require('gulp-esperanto');
 const AWS = require('aws-sdk');
 const readdir = require('readdir-plus');
 const async = require('async');
@@ -18,7 +19,7 @@ const path = require('path');
 const mkdirp = require('mkdirp');
 const babelify = require('babelify');
 const isparta = require('isparta');
-const esperanto = require('esperanto');
+// const esperanto = require('esperanto');
 const browserify = require('browserify');
 const runSequence = require('run-sequence');
 const source = require('vinyl-source-stream');
@@ -28,25 +29,28 @@ const config = manifest.babelBoilerplateOptions;
 const mainFile = manifest.main;
 const destinationFolder = path.dirname(mainFile);
 
-
-
 // Adding in https://medium.com/@AdamRNeary/a-gulp-workflow-for-amazon-lambda-61c2afd723b6
 //   also https://medium.com/@AdamRNeary/developing-and-testing-amazon-lambda-functions-e590fac85df4
 
 // Here we want to install npm packages to dist, ignoring devDependencies.
-gulp.task('npm', function() {
-  gulp.src('./lambda/hello-world/package.json')
+//gulp.task('npm', function() {
+//  gulp.src('./package.json')
+//      .pipe(gulp.dest('./dist'))
+//      .pipe(install({production: true}));
+//});
+gulp.task('npm', function () {
+  gulp.src(['./bower.json', './package.json'])
       .pipe(gulp.dest('./dist/'))
-      .pipe(install({production: true}));
+      .pipe(install());
 });
 
 // The js task could be replaced with gulp-coffee as desired.
-//gulp.task('js', function() {
-//
-//  // this is where I am moving the source file
-//  gulp.src('./lambda/hello-world/index.js')
-//      .pipe(gulp.dest('dist/'));
-//});
+gulp.task('js', function() {
+
+  // this is where I am moving the source file
+  gulp.src('./lambda/hello-josh/index.js')
+      .pipe(gulp.dest('dist/'));
+});
 
 // Next copy over environment variables managed outside of source control.
 gulp.task('env', function() {
@@ -59,9 +63,10 @@ gulp.task('env', function() {
 gulp.task('zip', function(onComplete) {
   function handleFolder(folder, onFolderComplete) {
     const zipLocation = __dirname + "/dist";
-    const zipName = folder.basename + '.zip';
-    const thesrc = ['**/*'];
-    gulp.src(['dist/hello-josh/**/*'])
+    const functionName = folder.basename
+    const zipName = functionName + '.zip';
+    const thesrc = ['dist/' + functionName + '/**/*'];
+    gulp.src(thesrc)
       .pipe(zip(zipName))
       .pipe(gulp.dest('dist'))
       .pipe(gcallback(onFolderComplete));
@@ -97,7 +102,6 @@ gulp.task('upload', function(onComplete) {
     var functionName = zipFile.basename;
     var zipPath = './dist/' + functionName + '.zip'
 
-    gutil.log('Push: ', zipFile);
     lambda.getFunction({FunctionName: functionName}, function(err, data) {
       if (err) {
         if (err.statusCode === 404) {
@@ -233,7 +237,7 @@ function getLambdasZipFiles(onComplete) {
 function bundleSource(name, base, entry, done) {
 
   const exportFileName = path.basename(config.lambdaEntryFile, path.extname(entry));
-  gutil.log('exportFileName -->', exportFileName);
+  gutil.log('exportFileName -->', base, entry);
 
   esperanto.bundle({
     base: base,
@@ -272,13 +276,14 @@ function bundleSource(name, base, entry, done) {
     })
     .catch(done);
 }
+
 gulp.task('build', ['lint-src', 'clean'], function(done) {
   getLambdas(function(lambdaFolders) {
 
     function handleFolder(folder, onFolderComplete) {
       const name = folder.basename;
-      const base = path.join(config.lambdaPath, folder.basename);
-      const entry = config.lambdaEntryFile;
+      const base = './';
+      const entry = path.join(config.lambdaPath, folder.basename, config.lambdaEntryFile);
 
       bundleSource(name, base, entry, onFolderComplete);
     }
@@ -322,7 +327,7 @@ function test() {
 
 gulp.task('coverage', ['lint-src', 'lint-test'], function(done) {
   require('babel/register');
-  gulp.src(['src/**/*.js'])
+  gulp.src(['src/**/*.js', 'lambda/**/*.js'])
     .pipe($.istanbul({ instrumenter: isparta.Instrumenter }))
     .pipe($.istanbul.hookRequire())
     .on('finish', function() {
@@ -344,7 +349,7 @@ gulp.task('build-in-sequence', function(callback) {
   runSequence(['lint-src', 'lint-test'], 'browserify', callback);
 });
 
-const watchFiles = ['src/**/*', 'test/**/*', 'package.json', '**/.eslintrc', '.jscsrc'];
+const watchFiles = ['src/**/*', 'test/**/*', 'lambda/**/*', 'package.json', '**/.eslintrc', '.jscsrc'];
 
 // Run the headless unit tests as you make changes.
 gulp.task('watch', function() {
@@ -364,7 +369,7 @@ gulp.task('test-browser', ['build-in-sequence'], function() {
 gulp.task('default', function(callback) {
   return runSequence(
     ['clean'],
-    ['npm', 'env'],
+    ['js', 'npm', 'env', 'coverage'],
     ['build'],
     ['zip'],
     ['upload'],
@@ -373,3 +378,9 @@ gulp.task('default', function(callback) {
 });
 
 
+//
+//gulp.task('default', function () {
+//  return gulp.src(['./bower.json', './package.json'])
+//      .pipe(gulp.dest('./dist/'))
+//      .pipe(install());
+//});
